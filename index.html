@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yati Finance Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script> 
+<style>
+:root { font-family: 'Inter', sans-serif; }
+.card { box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.2s ease; }
+.card:hover { transform: translateY(-3px); }
+.scrollable-area { max-height: 400px; overflow-y: auto; }
+/* Table styling for better UX */
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
+th, td { padding: 12px 16px; text-align: left; font-size: 14px; border-bottom: 1px solid #e5e7eb; }
+th { background-color: #f9fafb; font-weight: 600; text-transform: uppercase; font-size: 12px; color: #4b5563; }
+tr:last-child td { border-bottom: none; }
+.table-container { overflow-x: auto; }
+</style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<div id="app" class="max-w-7xl mx-auto px-4 py-12">
+    <header class="flex justify-between items-center mb-10">
+        <h1 class="text-4xl font-extrabold text-indigo-700 tracking-tight">💰 Yati Finance Tracker</h1>
+        <button onclick="clearAll()" class="text-sm font-medium text-red-600 hover:text-red-800 transition">Clear All Data</button>
+    </header>
+
+    <div class="grid lg:grid-cols-3 gap-6 mb-10">
+        <div class="card bg-white p-6 rounded-xl border-t-4 border-indigo-600 lg:col-span-2">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">New Transaction</h2>
+            <form id="form" class="grid md:grid-cols-5 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Date</label>
+                    <input type="date" id="date" required class="w-full p-2 border border-gray-300 rounded-lg mt-1 focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Amount (₹)</label>
+                    <input type="number" id="amount" required class="w-full p-2 border border-gray-300 rounded-lg mt-1 focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Category</label>
+                    <select id="category" class="w-full p-2 border border-gray-300 rounded-lg mt-1 focus:border-indigo-500 focus:ring-indigo-500">
+                        <option>Food</option>
+                        <option>Grocery</option>
+                        <option>Salary</option>
+                        <option>Entertainment</option>
+                        <option>Rent/Mortgage</option>
+                        <option>Utilities</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Type</label>
+                    <select id="type" class="w-full p-2 border border-gray-300 rounded-lg mt-1 focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="Expense">Expense</option>
+                        <option value="Income">Income</option>
+                    </select>
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block text-sm font-medium text-gray-700">Description</label>
+                    <input type="text" id="description" placeholder="e.g., Dinner with friends" class="w-full p-2 border border-gray-300 rounded-lg mt-1 focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div class="md:col-span-5 flex justify-end">
+                    <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition">
+                        Save Transaction
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card bg-white p-6 rounded-xl border-t-4 border-red-600 lg:col-span-1">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">Expense Breakdown</h2>
+            <div style="max-height: 250px;">
+                <canvas id="expenseChart"></canvas>
+            </div>
+            <p class="text-center text-sm text-gray-500 mt-2" id="chart-status">Add transactions to see data.</p>
+        </div>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6 mb-10">
+        <div class="card bg-white p-6 rounded-xl border-l-4 border-green-600">
+            <p class="text-sm text-gray-500 font-medium">Total Income (Filtered)</p>
+            <p id="total-income" class="text-3xl font-bold text-green-600 mt-1">₹0.00</p>
+        </div>
+        <div class="card bg-white p-6 rounded-xl border-l-4 border-red-600">
+            <p class="text-sm text-gray-500 font-medium">Total Expense (Filtered)</p>
+            <p id="total-expense" class="text-3xl font-bold text-red-600 mt-1">₹0.00</p>
+        </div>
+        <div class="card bg-white p-6 rounded-xl border-l-4 border-indigo-600">
+            <p class="text-sm text-gray-500 font-medium">Net Balance (Total)</p>
+            <p id="net-balance" class="text-3xl font-bold text-gray-900 mt-1">₹0.00</p>
+        </div>
+    </div>
+
+    <div class="card bg-white p-4 rounded-xl mb-6 flex flex-wrap gap-4 items-center border-b border-gray-200">
+        <span class="font-bold text-gray-700 mr-2">Filter By:</span>
+        <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-600">Start Date</label>
+            <input type="date" id="start-date" class="p-2 border rounded-lg text-sm">
+        </div>
+        <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-600">End Date</label>
+            <input type="date" id="end-date" class="p-2 border rounded-lg text-sm">
+        </div>
+        <button onclick="filterTransactions()" class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-100 text-sm font-medium transition">Apply Filter</button>
+        <button onclick="resetFilters()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium transition">Reset</button>
+
+        <span class="font-bold text-gray-700 ml-auto mr-2">Export:</span>
+        <button onclick="downloadCSV()" class="bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 text-sm font-medium transition">Download CSV</button>
+        <button onclick="downloadPDF()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 text-sm font-medium transition">Download PDF</button>
+    </div>
+
+    <div class="card bg-white rounded-xl overflow-hidden">
+        <h2 class="text-xl font-bold p-6 border-b text-gray-800">Transaction History (Filtered)</h2>
+        <div class="table-container scrollable-area">
+            <table id="transaction-table">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable(0)">Date</th>
+                        <th onclick="sortTable(1)">Type</th>
+                        <th onclick="sortTable(2)">Category</th>
+                        <th onclick="sortTable(3)">Description</th>
+                        <th onclick="sortTable(4)" class="text-right">Amount (₹)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="list">
+                    <tr><td colspan="6" class="text-center text-gray-400 py-6">No transactions found.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const form = document.getElementById('form');
+const tableBody = document.getElementById('list');
+const formatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
+
+let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+document.getElementById('date').valueAsDate = new Date(); 
+
+let expenseChart;
+
+// --- Initialization for Today's Date Filter ---
+function setInitialDates() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('start-date').value = today;
+    document.getElementById('end-date').value = today;
+}
+
+setInitialDates();
+filterTransactions(); // Apply the filter on page load
+
+// --- Core Functions ---
+
+form.addEventListener('submit', e => {
+    e.preventDefault();
+    const date = document.getElementById('date').value;
+    const amount = parseFloat(document.getElementById('amount').value);
+    const category = document.getElementById('category').value;
+    const type = document.getElementById('type').value;
+    const description = document.getElementById('description').value;
+
+    if (!date || !amount) return alert('Please fill all required fields.');
+
+    const tx = { id: Date.now(), date, amount, category, type, description };
+    transactions.unshift(tx);
+    saveData();
+});
+
+function saveData() {
+    localStorage.setItem('transactions', JSON.stringify(transactions));
+    // After saving, re-apply the current filter to keep the view consistent
+    filterTransactions(); 
+    // We also need to update the Net Balance card (which is based on ALL transactions)
+    updateNetBalance(); 
+    form.reset();
+    document.getElementById('date').valueAsDate = new Date();
+}
+
+// Function to update the Net Balance card based on ALL transactions
+function updateNetBalance() {
+    let income = 0, expense = 0;
+    transactions.forEach(t => {
+        if (t.type === 'Income') income += t.amount; else expense += t.amount;
+    });
+    
+    const net = income - expense;
+    const netEl = document.getElementById('net-balance');
+    netEl.textContent = formatter.format(net);
+    netEl.className = `text-3xl font-bold mt-1 ${net > 0 ? 'text-green-600' : net < 0 ? 'text-red-600' : 'text-gray-900'}`;
+}
+
+function updateUI(filtered) {
+    tableBody.innerHTML = '';
+    
+    if (filtered.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-6">No transactions found for this period.</td></tr>';
+    }
+
+    let income = 0, expense = 0;
+    const expenseData = {};
+
+    filtered.forEach(t => {
+        if (t.type === 'Income') {
+            income += t.amount;
+        } else {
+            expense += t.amount;
+            // Aggregate expense data for chart
+            expenseData[t.category] = (expenseData[t.category] || 0) + t.amount;
+        }
+
+        const typeColor = t.type === 'Income' ? 'text-green-600' : 'text-red-600';
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${t.date}</td>
+            <td class="${typeColor} font-medium">${t.type}</td>
+            <td>${t.category}</td>
+            <td>${t.description || '-'}</td>
+            <td class="text-right ${typeColor} font-semibold">${formatter.format(t.amount)}</td>
+            <td>
+                <button onclick="editTransaction(${t.id})" class="text-indigo-600 hover:text-indigo-800 text-sm mr-2">Edit</button>
+                <button onclick="deleteTransaction(${t.id})" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+            </td>`;
+        tableBody.appendChild(row);
+    });
+
+    document.getElementById('total-income').textContent = formatter.format(income);
+    document.getElementById('total-expense').textContent = formatter.format(expense);
+
+    updateChart(expenseData);
+}
+
+// --- Chart, CRUD, Filter, Sort, Export functions remain the same ---
+
+function updateChart(data) {
+    const ctx = document.getElementById('expenseChart').getContext('2d');
+    const categories = Object.keys(data);
+    const amounts = Object.values(data);
+    const statusEl = document.getElementById('chart-status');
+
+    if (amounts.length === 0) {
+        statusEl.style.display = 'block';
+        if (expenseChart) expenseChart.destroy();
+        expenseChart = null; // Ensure chart is nullified
+        return;
+    } else {
+        statusEl.style.display = 'none';
+    }
+
+    const backgroundColors = categories.map(c => {
+        switch(c) {
+            case 'Food': return '#f87171';
+            case 'Grocery': return '#fbbf24';
+            case 'Entertainment': return '#6366f1';
+            case 'Utilities': return '#22d3ee';
+            case 'Rent/Mortgage': return '#9333ea';
+            case 'Salary': return '#34d399'; // New: Salary color for income in chart
+            case 'Other': return '#d1d5db';
+            default: return '#3b82f6';
+        }
+    });
+
+    if (expenseChart) {
+        expenseChart.data.labels = categories;
+        expenseChart.data.datasets[0].data = amounts;
+        expenseChart.data.datasets[0].backgroundColor = backgroundColors;
+        expenseChart.update();
+    } else {
+        expenseChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: categories,
+                datasets: [{
+                    label: 'Expense by Category',
+                    data: amounts,
+                    backgroundColor: backgroundColors,
+                    hoverOffset: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { font: { family: 'Inter' } }
+                    },
+                    title: { display: false }
+                }
+            }
+        });
+    }
+}
+
+function deleteTransaction(id) {
+    if (confirm('Are you sure you want to delete this transaction?')) {
+        transactions = transactions.filter(t => t.id !== id);
+        saveData();
+    }
+}
+
+function editTransaction(id) {
+    const tx = transactions.find(t => t.id === id);
+    if (!tx) return;
+    transactions = transactions.filter(t => t.id !== id);
+    document.getElementById('date').value = tx.date;
+    document.getElementById('amount').value = tx.amount;
+    document.getElementById('category').value = tx.category;
+    document.getElementById('type').value = tx.type;
+    document.getElementById('description').value = tx.description;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    alert('Transaction details loaded into the form. Please make changes and click "Save Transaction" to update it.');
+}
+
+function filterTransactions() {
+    const start = document.getElementById('start-date').value;
+    const end = document.getElementById('end-date').value;
+    
+    if (!start && !end) return updateUI(transactions);
+    
+    const s = start ? new Date(start) : new Date('2000-01-01');
+    const e = end ? new Date(end) : new Date();
+    e.setHours(23, 59, 59, 999);
+
+    const filtered = transactions.filter(t => {
+        const d = new Date(t.date);
+        return d >= s && d <= e;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending for table view
+
+    updateUI(filtered);
+    updateNetBalance(); // Always update net balance based on ALL transactions
+}
+
+function resetFilters() {
+    document.getElementById('start-date').value = '';
+    document.getElementById('end-date').value = '';
+    filterTransactions(); // Will update UI with all transactions
+}
+
+let sortDir = 1;
+
+function sortTable(n) {
+    const table = document.getElementById("transaction-table");
+    let switching = true;
+    
+    if (n !== sortTable.columnIndex) {
+        sortDir = 1; 
+    } else {
+        sortDir *= -1; 
+    }
+    sortTable.columnIndex = n;
+
+    while (switching) {
+        switching = false;
+        const rows = table.rows;
+        for (let i = 1; i < (rows.length - 1); i++) {
+            let shouldSwitch = false;
+            const x = rows[i].getElementsByTagName("TD")[n];
+            const y = rows[i + 1].getElementsByTagName("TD")[n];
+            
+            let xContent = x.innerHTML.toLowerCase().replace(/[^a-zA-Z0-9.\-]/g, '');
+            let yContent = y.innerHTML.toLowerCase().replace(/[^a-zA-Z0-9.\-]/g, '');
+
+            if (n === 0) { // Date column
+                xContent = new Date(xContent);
+                yContent = new Date(yContent);
+            } else if (n === 4) { // Amount column
+                xContent = parseFloat(xContent.replace(/[^0-9.\-]/g, ''));
+                yContent = parseFloat(yContent.replace(/[^0-9.\-]/g, ''));
+            }
+
+            if (sortDir === 1) {
+                if (xContent > yContent) {
+                    shouldSwitch = true;
+                    break;
+                }
+            } else if (sortDir === -1) {
+                if (xContent < yContent) {
+                    shouldSwitch = true;
+                    break;
+                }
+            }
+        }
+        if (shouldSwitch) {
+            rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+            switching = true;
+        }
+    }
+}
+
+function clearAll() {
+    if (confirm('WARNING: Delete all transactions and reset local storage? This cannot be undone.')) {
+        transactions = [];
+        saveData();
+        setInitialDates(); // Reset filter view to today after clearing
+    }
+}
+
+function downloadCSV() {
+    if (transactions.length === 0) return alert('No data to export.');
+    const rows = [["Date","Type","Category","Description","Amount (INR)"]];
+    const sortedTx = [...transactions].sort((a,b) => new Date(a.date) - new Date(b.date));
+    sortedTx.forEach(t => rows.push([t.date, t.type, t.category, t.description.replace(/,/g, ''), t.amount]));
+    let csv = rows.map(r=>r.map(v => `"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = "finance_report.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+function downloadPDF() {
+    const w = window.open('', '', 'height=800,width=800');
+    w.document.write(`<html>
+        <head>
+            <title>Finance Report</title>
+            <style>
+                body { font-family: sans-serif; padding: 20px; }
+                h1 { color: #4338ca; border-bottom: 2px solid #4338ca; padding-bottom: 5px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ccc; padding: 10px; text-align: left; font-size: 14px; }
+                th { background-color: #eef2ff; }
+                .summary p { font-size: 16px; margin: 5px 0; }
+                .green { color: #16a34a; }
+                .red { color: #dc2626; }
+            </style>
+        </head>
+        <body>
+            <h1>Personal Finance Report (All Transactions)</h1>
+            <div class="summary">
+                <p><strong>Total Income:</strong> <span class="green">${document.getElementById('total-income').textContent}</span></p>
+                <p><strong>Total Expense:</strong> <span class="red">${document.getElementById('total-expense').textContent}</span></p>
+                <p><strong>Net Balance:</strong> <span class="${parseFloat(document.getElementById('net-balance').textContent.replace(/[^0-9.\-]/g, '')) >= 0 ? 'green' : 'red'}">${document.getElementById('net-balance').textContent}</span></p>
+            </div>
+            <h2>Transaction Details</h2>
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount (₹)</th></tr>
+                </thead>
+                <tbody>`);
+    
+    // Use all transactions for the PDF export
+    transactions.forEach(t=>{
+        const colorClass = t.type === 'Income' ? 'green' : 'red';
+        w.document.write(`<tr>
+            <td>${t.date}</td>
+            <td class="${colorClass}">${t.type}</td>
+            <td>${t.category}</td>
+            <td>${t.description || '-'}</td>
+            <td class="${colorClass}">${formatter.format(t.amount)}</td>
+        </tr>`);
+    });
+
+    w.document.write(`</tbody></table></body></html>`);
+    w.document.close();
+    w.print();
+}
+</script>
+
+</body>
+</html>
